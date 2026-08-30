@@ -1,12 +1,8 @@
-/* FongMi WebHome SDK — injected into WebView as window.fm / window.fongmi
- * Compatible with the fongmi/fengmi WebHome SDK contract.
- * Designed to work on Android 7+ (Chromium 51+ baseline) — no ?. ?? ??= etc.
- */
+/* FongMi WebHome SDK — injected into WebView as window.fm / window.fongmi */
 (function () {
   if (window.__fmSdkInjected) return;
   window.__fmSdkInjected = true;
 
-  // -------- helpers --------
   function quote(s) {
     s = s == null ? '' : String(s);
     return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
@@ -20,25 +16,9 @@
     for (var k in source) if (Object.prototype.hasOwnProperty.call(source, k)) target[k] = source[k];
     return target;
   }
-  function headersToObject(h) {
-    var o = {};
-    if (!h) return o;
-    if (typeof Headers !== 'undefined' && h instanceof Headers) {
-      h.forEach(function (v, k) { o[k] = v; });
-    } else {
-      for (var k in h) o[k] = h[k];
-    }
-    return o;
-  }
-  function isAbsoluteUrl(s) {
-    return /^https?:\/\//i.test(s || '');
-  }
   function responseOf(raw) {
-    // bridge 返回 { ok, status, url, body, error?, headers? }
     var o = safeJson(raw);
-    if (!o) {
-      return { status: 0, text: '', bytes: null, ok: false, error: 'bad bridge response' };
-    }
+    if (!o) return { status: 0, text: '', bytes: null, ok: false, error: 'bad bridge response' };
     var body = o.body || '';
     var bytes;
     if (body && /^data:application\/octet-stream;base64,/.test(body)) {
@@ -60,7 +40,6 @@
     };
   }
 
-  // -------- callback / hydrate --------
   var callbacks = {};
   var seq = 0;
   function invoke(method, payload) {
@@ -100,7 +79,6 @@
     }
   };
 
-  // -------- history hook --------
   if (!window.__fmUrlHook && window.history) {
     window.__fmUrlHook = true;
     var emit = function () {
@@ -114,19 +92,16 @@
     window.addEventListener('popstate', emit);
   }
 
-  // -------- net --------
   var net = {
     request: function (url, options) {
       options = options || {};
-      return invoke('net.request', extend({ url: url }, options))
-        .then(responseOf);
+      return invoke('net.request', extend({ url: url }, options)).then(responseOf);
     },
     resourceUrl: function (url, options) {
       return window.fongmiBridge.resourceUrl(url, JSON.stringify(options || {}));
     }
   };
 
-  // -------- player --------
   var player = {
     playUrl: function (url, title, options) {
       return invoke('player.playUrl', extend({}, options || {}, { url: url || '', title: title || '' }));
@@ -137,41 +112,35 @@
         title: title || '', pic: pic || ''
       }));
     },
-    playVodInline: function (payload) {
-      return invoke('player.playVodInline', payload || {});
-    },
+    playVodInline: function (payload) { return invoke('player.playVodInline', payload || {}); },
     preloadArtwork: function (pic, wallPic) {
       return invoke('player.preloadArtwork', { pic: pic || '', wallPic: wallPic || '' });
     },
-    control: function (action) {
-      return invoke('player.control', { action: action || '' });
-    },
-    status: function () {
-      return invoke('player.status', {});
-    }
+    control: function (action) { return invoke('player.control', { action: action || '' }); },
+    status: function () { return invoke('player.status', {}); }
   };
 
-  // -------- cache --------
   var cache = {
     get: function (key, rule) { return invoke('cache.get', { key: key || '', rule: rule || '' }); },
-    set: function (key, value, rule) { return invoke('cache.set', { key: key || '', value: value == null ? '' : value, rule: rule || '' }); },
+    set: function (key, value, rule) {
+      return invoke('cache.set', { key: key || '', value: value == null ? '' : value, rule: rule || '' });
+    },
     del: function (key, rule) { return invoke('cache.del', { key: key || '', rule: rule || '' }); }
   };
 
-  // -------- pan --------
   var pan = {
     check: function (items) { return invoke('pan.check', { items: items || [] }); },
     play: function (payload) { return invoke('pan.play', payload || {}); }
   };
 
-  // -------- ext --------
   var ext = {
     info: function () { return invoke('ext.info', {}); },
-    log: function (message, data) { return invoke('ext.log', { message: message || '', data: data == null ? '' : (typeof data === 'string' ? data : JSON.stringify(data)) }); },
+    log: function (message, data) {
+      return invoke('ext.log', { message: message || '', data: data == null ? '' : (typeof data === 'string' ? data : JSON.stringify(data)) });
+    },
     toast: function (message) { return invoke('ext.toast', { message: message || '' }); }
   };
 
-  // -------- ui --------
   var ui = {
     setToolbar: function (visible) { return invoke('ui.setToolbar', { visible: visible !== false }); },
     setChrome: function (options) { return invoke('ui.setChrome', options || {}); },
@@ -179,9 +148,10 @@
     getViewport: function () { return invoke('ui.getViewport', {}); }
   };
 
-  // -------- app --------
   var app = {
-    search: function (keyword, options) { return invoke('app.search', extend({}, options || {}, { keyword: keyword || '' })); },
+    search: function (keyword, options) {
+      return invoke('app.search', extend({}, options || {}, { keyword: keyword || '' }));
+    },
     openVod: function () { return invoke('app.openVod', {}); },
     openLive: function () { return invoke('app.openLive', {}); },
     openKeep: function () { return invoke('app.openKeep', {}); },
@@ -189,21 +159,17 @@
     history: function () { return invoke('app.history', {}); }
   };
 
-  // -------- device/site/config --------
   var device = { info: function () { return invoke('device.info', {}); } };
-  var site   = { info: function () { return invoke('site.info', {}); } };
+  var site = { info: function () { return invoke('site.info', {}); } };
   var config = { info: function () { return invoke('config.info', {}); } };
 
-  // -------- navigation --------
   var navigation = {
-    back:   function () { return invoke('navigation.back', {}); },
+    back: function () { return invoke('navigation.back', {}); },
     reload: function () { return invoke('navigation.reload', {}); }
   };
 
-  // -------- exposed --------
   window.fongmiClient = window.fongmiClient || { mode: 'normal', isLeanback: false };
 
-  // Short alias
   window.fm = {
     req: net.request,
     res: net.resourceUrl,
@@ -231,7 +197,6 @@
     reload: navigation.reload
   };
 
-  // Full namespace
   window.fongmi = {
     invoke: invoke,
     net: net,
@@ -248,9 +213,6 @@
   };
   window.FM = window.fongmi;
 
-  // Mark native
   if (document.documentElement) document.documentElement.classList.add('fm-native');
-
-  // Dispatch ready event
   try { window.dispatchEvent(new CustomEvent('fmsdk')); } catch (e) {}
 })();
