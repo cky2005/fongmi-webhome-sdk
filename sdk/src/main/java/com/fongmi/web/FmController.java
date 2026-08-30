@@ -151,7 +151,7 @@ public class FmController {
             Activity act = currentActivity();
             if (act == null) {
                 if (retryCount++ < 18) {
-                    main.postDelayed(() -> show(ctx, url, siteKey, siteName, siteHeader, handler), 180);
+                    main.postDelayed(() -> show(ctx, url, siteKey, siteName, siteHeader, actualHandler), 180);
                 } else {
                     retryCount = 0;
                     Log.w(TAG, "no foreground activity, give up showing " + url);
