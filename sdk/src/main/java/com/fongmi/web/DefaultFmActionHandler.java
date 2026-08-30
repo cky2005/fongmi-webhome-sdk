@@ -1,26 +1,20 @@
 package com.fongmi.web;
 
 import android.content.Context;
-import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.webkit.CookieManager;
-import android.webkit.WebView;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
