@@ -164,7 +164,7 @@ public class FmController {
         private final FmActionHandler handler;
         private WebView webView;
         private FmBridge bridge;
-        private long lastPageUrl;
+        private String lastPageUrl;
         private int loadToken;
 
         @SuppressLint("ClickableViewAccessibility")
