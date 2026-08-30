@@ -5,6 +5,7 @@ import android.text.TextUtils;
 
 import com.fongmi.web.FmActionHandler;
 import com.fongmi.web.FmController;
+import com.github.catvod.crawler.Spider;
 
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
