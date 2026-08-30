@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * WebHome Spider — fongmi/catvod 系影视壳的接入点。
- * <p>
- * 接入方式: 在 jar 站点配置里写
+ *
+ * <p>接入方式: 在 jar 站点配置里写
  * <pre>
  * {
  *   "key": "webhome",
@@ -23,14 +23,13 @@ import java.util.List;
  *   "homePage": "https://example.com/your-home.html"
  * }
  * </pre>
- * <p>
- * 壳启动该 Spider 后，{@link #homeContent(boolean)} / {@link #detailContent(List)}
+ *
+ * <p>壳启动该 Spider 后，{@link #homeContent(boolean)} / {@link #detailContent(List)}
  * 会打开全屏 WebView 加载 homePage，并通过注入的 fmsdk.js 让 HTML 能调用
- * {@code window.fm.req/play/vod/cache/device...} 等所有 FM SDK 能力。
- * <p>
- * 壳可在自己的 init 之前调 {@link #setHandler(FmActionHandler)} 注入自定义业务实现，
- * 否则用 {@link DefaultFmActionHandler}（HTTP 走 HttpURLConnection，播放走 push agent，
- * 缓存走 SharedPreferences）。
+ * window.fm / window.fongmi 的所有 SDK 能力。
+ *
+ * <p>壳可在自己的 init 之前调 {@link #setHandler(FmActionHandler)} 注入自定义业务实现，
+ * 否则用默认实现（HTTP 走 HttpURLConnection，缓存走 SharedPreferences）。
  */
 public class WebHome extends Spider {
 
@@ -76,8 +75,6 @@ public class WebHome extends Spider {
 
     @Override
     public String playerContent(String flag, String id, List<String> vipFlags) {
-        // fm.play 走这里 — 把 url 包装成 playerContent JSON，让壳走 push_agent
-        // fongmi 壳收到 {parse:0, url:"https://..."} 后会用 VideoActivity.start() 自动播放
         try {
             String url = id == null ? "" : id;
             int at = url.indexOf("@@");
@@ -104,8 +101,6 @@ public class WebHome extends Spider {
         FmActionHandler h = globalHandler;
         FmController.get().show(ctx, this.extend, "webhome", "WebHome", null, h);
     }
-
-    // ============== 壳可注入点 ==============
 
     /** 壳在 init 自己 Spider 之前调用，注入业务实现。 */
     public static void setHandler(FmActionHandler h) {
