@@ -24,7 +24,7 @@ public class FmBridge {
     private final WebView webView;
     private final FmActionHandler handler;
     private final Map<String, String> results = new ConcurrentHashMap<>();
-    private final Map<String, CompletableFuture<String>> inlineResults = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<JSONObject>> inlineResults = new ConcurrentHashMap<>();
     private final Handler main = new Handler(Looper.getMainLooper());
 
     public FmBridge(WebView webView, FmActionHandler handler) {
@@ -92,8 +92,15 @@ public class FmBridge {
 
     @JavascriptInterface
     public void inlineResult(String id, String payload) {
-        CompletableFuture<String> f = inlineResults.remove(id);
-        if (f != null) f.complete(payload);
+        CompletableFuture<JSONObject> f = inlineResults.remove(id);
+        if (f != null) {
+            try {
+                JSONObject obj = TextUtils.isEmpty(payload) ? new JSONObject() : new JSONObject(payload);
+                f.complete(obj);
+            } catch (JSONException e) {
+                f.completeExceptionally(e);
+            }
+        }
     }
 
     private String handle(String method, JSONObject payload) {
