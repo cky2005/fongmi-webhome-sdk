@@ -28,6 +28,8 @@ import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class FmController {
 
@@ -119,6 +121,29 @@ public class FmController {
 
         FmActionHandler actualHandler = handler != null ? handler : new DefaultFmActionHandler(ctx);
 
+        // 如果已经在主线程，直接显示（同步）
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Activity act = currentActivity();
+            if (act == null) {
+                // 等待 Activity 出现
+                if (retryCount++ < 18) {
+                    main.postDelayed(() -> show(ctx, url, siteKey, siteName, siteHeader, actualHandler), 180);
+                } else {
+                    retryCount = 0;
+                    Log.w(TAG, "no foreground activity, give up showing " + url);
+                }
+                return;
+            }
+            retryCount = 0;
+            this.siteKey = siteKey;
+            this.siteName = siteName;
+            if (overlay != null && overlay.isShowing()) overlay.dismiss();
+            overlay = new Overlay(act, url, siteHeader, actualHandler);
+            overlay.show();
+            return;
+        }
+
+        // 其他线程，post 到主线程
         main.post(() -> {
             Activity act = currentActivity();
             if (act == null) {
@@ -138,6 +163,50 @@ public class FmController {
             overlay = new Overlay(act, url, siteHeader, actualHandler);
             overlay.show();
         });
+    }
+
+    /**
+     * 同步显示 WebView，阻塞调用线程直到 WebView 关闭。
+     * 用于在 Spider 的 homeContent() 等回调里打开 WebView。
+     */
+    public void showSync(Context ctx, String url, String siteKey, String siteName,
+                          Map<String, String> siteHeader, FmActionHandler handler) {
+        if (ctx == null || TextUtils.isEmpty(url)) return;
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            // 不在主线程，转到主线程 showSync 阻塞
+            final CountDownLatch latch = new CountDownLatch(1);
+            final boolean[] done = {false};
+            main.post(() -> {
+                showSyncOnMain(ctx, url, siteKey, siteName, siteHeader, handler, latch);
+                done[0] = true;
+            });
+            try {
+                // 最多等 5 分钟（用户可能长时间看 HTML）
+                latch.await(5, TimeUnit.MINUTES);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return;
+        }
+        // 已经在主线程
+        showSyncOnMain(ctx, url, siteKey, siteName, siteHeader, handler, null);
+    }
+
+    private void showSyncOnMain(Context ctx, String url, String siteKey, String siteName,
+                                 Map<String, String> siteHeader, FmActionHandler handler,
+                                 CountDownLatch latch) {
+        FmActionHandler actualHandler = handler != null ? handler : new DefaultFmActionHandler(ctx);
+        Activity act = currentActivity();
+        if (act == null) {
+            Log.w(TAG, "no foreground activity for showSync");
+            if (latch != null) latch.countDown();
+            return;
+        }
+        this.siteKey = siteKey;
+        this.siteName = siteName;
+        if (overlay != null && overlay.isShowing()) overlay.dismiss();
+        overlay = new Overlay(act, url, siteHeader, actualHandler, latch);
+        overlay.show();
     }
 
     public void close() {
@@ -162,6 +231,7 @@ public class FmController {
         private final String url;
         private final Map<String, String> siteHeader;
         private final FmActionHandler handler;
+        private final CountDownLatch closeLatch;
         private WebView webView;
         private FmBridge bridge;
         private String lastPageUrl;
@@ -169,11 +239,17 @@ public class FmController {
 
         @SuppressLint("ClickableViewAccessibility")
         Overlay(Activity activity, String url, Map<String, String> siteHeader, FmActionHandler handler) {
+            this(activity, url, siteHeader, handler, null);
+        }
+
+        @SuppressLint("ClickableViewAccessibility")
+        Overlay(Activity activity, String url, Map<String, String> siteHeader, FmActionHandler handler, CountDownLatch latch) {
             super(activity, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
             this.host = activity;
             this.url = url;
             this.siteHeader = siteHeader;
             this.handler = handler;
+            this.closeLatch = latch;
         }
 
         @Override
@@ -378,6 +454,7 @@ public class FmController {
             }
             bridge = null;
             super.dismiss();
+            if (closeLatch != null) closeLatch.countDown();
         }
 
         @Override
