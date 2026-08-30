@@ -1,14 +1,18 @@
-# Built outputs
-build/
-*/build/
-.gradle/
-*/.gradle/
+# Build artifacts
 sdk/build/
-*.iml
+*.jar
+*.dex
+*.class
+*.aar
+
+# IDE
 .idea/
-local.properties
+*.iml
+.vscode/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
-captures/
-.externalNativeBuild
-.cxx
