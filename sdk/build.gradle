@@ -1,0 +1,69 @@
+plugins {
+    id 'java-library'
+    id 'com.android.library' version '8.2.0' apply false
+}
+
+android {
+    namespace 'com.fongmi.web'
+    compileSdk 34
+    defaultConfig {
+        minSdk 24
+        targetSdk 34
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        buildConfig false
+    }
+}
+
+dependencies {
+    implementation 'androidx.annotation:annotation:1.7.0'
+    implementation 'androidx.webkit:webkit:1.10.0'
+
+    // FongMi/CatVod Spider 接口
+    compileOnly files('libs/catvod.jar')
+    // 或者使用下面这种坐标
+    // implementation 'com.github.catvod:crawler:1.4.7'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Implementation-Title': 'FongMi WebHome SDK',
+            'Implementation-Version': project.version,
+            'Built-By': 'FongMi WebHome SDK Builder',
+            'Built-Date': new Date().format('yyyy-MM-dd HH:mm:ss')
+        )
+    }
+}
+
+// 把 src/main/assets 打进 jar
+tasks.register('jarWithAssets', Jar) {
+    from sourceSets.main.java.srcDirs
+    from 'src/main/assets'
+    classifier 'assets'
+    manifest {
+        attributes(
+            'Implementation-Title': 'FongMi WebHome SDK (with assets)',
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+tasks.register('fatJar', Jar) {
+    archiveClassifier = 'all'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes('Implementation-Title': 'FongMi WebHome SDK - Fat JAR')
+    }
+    from sourceSets.main.output
+    dependsOn configurations.runtimeClasspath
+    from {
+        configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+    }
+}
