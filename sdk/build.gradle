@@ -1,34 +1,45 @@
+// SDK build.gradle — FongMi WebHome SDK
+// Plain java-library build. Compiles all Java in src/main/java against
+// android.jar (compileOnly). Packages the classes plus assets into jars.
+
 plugins {
     id 'java-library'
-    id 'com.android.library' version '8.2.0' apply false
 }
 
-android {
-    namespace 'com.fongmi.web'
-    compileSdk 34
-    defaultConfig {
-        minSdk 24
-        targetSdk 34
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+def findAndroidJar() {
+    def candidates = [
+        System.env.ANDROID_HOME,
+        System.env.ANDROID_SDK_ROOT,
+        '/usr/local/lib/android/sdk',
+        '/opt/android-sdk',
+        '/root/Android/Sdk',
+        System.getProperty('user.home') + '/Android/Sdk',
+        System.getProperty('user.home') + '/Library/Android/sdk'
+    ].findAll { it != null }
+    for (def home : candidates) {
+        def jar = new File(home, 'platforms/android-34/android.jar')
+        if (jar.exists()) return jar
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-    buildFeatures {
-        buildConfig false
-    }
+    return null
+}
+
+def androidJar = findAndroidJar()
+if (androidJar != null) {
+    println "Using android.jar: ${androidJar}"
+} else {
+    println "WARNING: android.jar not found. Build may fail."
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.7.0'
-    implementation 'androidx.webkit:webkit:1.10.0'
-
-    // FongMi/CatVod Spider 接口
-    compileOnly files('libs/catvod.jar')
-    // 或者使用下面这种坐标
-    // implementation 'com.github.catvod:crawler:1.4.7'
-
-    testImplementation 'junit:junit:4.13.2'
+    if (androidJar != null) {
+        compileOnly files(androidJar)
+    }
+    compileOnly 'androidx.annotation:annotation:1.7.0'
 }
 
 tasks.named('jar') {
@@ -36,34 +47,22 @@ tasks.named('jar') {
         attributes(
             'Implementation-Title': 'FongMi WebHome SDK',
             'Implementation-Version': project.version,
-            'Built-By': 'FongMi WebHome SDK Builder',
-            'Built-Date': new Date().format('yyyy-MM-dd HH:mm:ss')
+            'Built-By': 'FongMi WebHome SDK Builder'
         )
     }
+    // 排除 stub Spider — 壳会自己提供真实的 com.github.catvod.crawler.Spider
+    exclude '**/com/github/catvod/crawler/Spider*.class'
 }
 
-// 把 src/main/assets 打进 jar
+tasks.register('sourcesJar', Jar) {
+    archiveClassifier = 'sources'
+    from sourceSets.main.allSource
+}
+
 tasks.register('jarWithAssets', Jar) {
-    from sourceSets.main.java.srcDirs
+    archiveClassifier = 'assets'
     from 'src/main/assets'
-    classifier 'assets'
     manifest {
-        attributes(
-            'Implementation-Title': 'FongMi WebHome SDK (with assets)',
-            'Implementation-Version': project.version
-        )
-    }
-}
-
-tasks.register('fatJar', Jar) {
-    archiveClassifier = 'all'
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    manifest {
-        attributes('Implementation-Title': 'FongMi WebHome SDK - Fat JAR')
-    }
-    from sourceSets.main.output
-    dependsOn configurations.runtimeClasspath
-    from {
-        configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+        attributes('Implementation-Title': 'FongMi WebHome SDK (assets)')
     }
 }
