@@ -1,0 +1,16 @@
+# Built outputs
+build/
+*/build/
+.gradle/
+*/.gradle/
+sdk/build/
+sdk/libs/*.jar
+sdk/libs/*.aar
+*.iml
+.idea/
+local.properties
+.DS_Store
+*.log
+captures/
+.externalNativeBuild
+.cxx
