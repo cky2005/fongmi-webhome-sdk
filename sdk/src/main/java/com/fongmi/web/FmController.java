@@ -28,25 +28,11 @@ import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
-/**
- * WebHome WebView 控制器。
- * <p>
- * 负责:
- * <ul>
- *   <li>创建全屏 WebView 弹窗</li>
- *   <li>配置 WebView 设置（硬件加速、Cookie、UA 等）</li>
- *   <li>注入 fmsdk.js 脚本</li>
- *   <li>挂载 {@link FmBridge} 作为 {@code fongmiBridge}</li>
- *   <li>处理返回键和站点 header</li>
- * </ul>
- * 一次只能显示一个 WebHome，单例。
- */
 public class FmController {
 
     private static final String TAG = "FmController";
-    private static final long LOAD_TIMEOUT_MS = 15_000;
+    private static final long LOAD_TIMEOUT_MS = 15000;
     private static final String SDK_ASSET = "fmsdk.js";
 
     private static volatile FmController INSTANCE;
@@ -72,7 +58,6 @@ public class FmController {
         return INSTANCE;
     }
 
-    /** 壳在 init Context 时调用，确保能找到前台 Activity。 */
     public static void installLifecycle(Application app) {
         if (lifecycleInstalled || app == null) return;
         synchronized (LOCK) {
@@ -101,7 +86,6 @@ public class FmController {
     private static Activity currentActivity() {
         Activity a = foreground.get();
         if (a != null && !a.isFinishing() && !a.isDestroyed()) return a;
-        // 反射兜底
         try {
             Class<?> at = Class.forName("android.app.ActivityThread");
             Object thread = at.getMethod("currentActivityThread").invoke(null);
@@ -127,18 +111,6 @@ public class FmController {
         return null;
     }
 
-    // ============== 公共 API ==============
-
-    /**
-     * 打开一个 WebHome 页面。
-     *
-     * @param ctx        应用上下文
-     * @param url        目标 URL（http/https/file）
-     * @param siteKey    站点 key（用于 siteInfo）
-     * @param siteName   站点显示名
-     * @param siteHeader 站点 header 注入到首个请求
-     * @param handler    业务处理器（可为 null 用默认）
-     */
     public void show(Context ctx, String url, String siteKey, String siteName,
                      Map<String, String> siteHeader, FmActionHandler handler) {
         if (ctx == null || TextUtils.isEmpty(url)) return;
@@ -162,7 +134,6 @@ public class FmController {
             this.siteKey = siteKey;
             this.siteName = siteName;
 
-            // 已有 overlay 先关
             if (overlay != null && overlay.isShowing()) overlay.dismiss();
             overlay = new Overlay(act, url, siteHeader, actualHandler);
             overlay.show();
@@ -186,8 +157,6 @@ public class FmController {
         this.chromeMode = WebHomeChrome.isValid(mode) ? mode : WebHomeChrome.NORMAL;
     }
 
-    // ============== Overlay ==============
-
     private static final class Overlay extends android.app.Dialog {
         private final Activity host;
         private final String url;
@@ -197,7 +166,6 @@ public class FmController {
         private FmBridge bridge;
         private long lastPageUrl;
         private int loadToken;
-        private boolean sdkReady;
 
         @SuppressLint("ClickableViewAccessibility")
         Overlay(Activity activity, String url, Map<String, String> siteHeader, FmActionHandler handler) {
@@ -230,7 +198,6 @@ public class FmController {
             setOnKeyListener((d, keyCode, event) -> {
                 if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
                     if (webView.canGoBack()) {
-                        // 判断是否在 homePage 边界
                         String current = webView.getUrl();
                         if (current != null && current.equals(lastPageUrl)) {
                             dismiss();
@@ -254,7 +221,6 @@ public class FmController {
                         "text/html", "UTF-8", null);
             }
 
-            // 超时保护
             webView.postDelayed(() -> {
                 if (!isShowing() || webView == null) return;
                 String current = webView.getUrl();
@@ -300,7 +266,6 @@ public class FmController {
                 if (Build.VERSION.SDK_INT >= 24) cm.setAcceptFileSchemeCookies(true);
             } catch (Throwable ignored) {}
 
-            // 注入站点 header 的 Cookie
             if (siteHeader != null) {
                 String cookie = siteHeader.get("Cookie");
                 if (cookie != null) CookieManager.getInstance().setCookie(url, cookie);
@@ -326,7 +291,6 @@ public class FmController {
                 public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                     super.onPageStarted(view, url, favicon);
                     lastPageUrl = url;
-                    sdkReady = false;
                     int token = ++loadToken;
                     view.postDelayed(() -> {
                         if (token == loadToken && isShowing()) {
@@ -347,7 +311,6 @@ public class FmController {
                 }
             });
 
-            // 启动后注入 SDK JS — 等 DOM 可用时
             v.post(() -> injectSdk(v));
         }
 
@@ -357,17 +320,12 @@ public class FmController {
                 Log.e(TAG, "fmsdk.js not found in assets");
                 return;
             }
-            // 转义: JS 字符串里的换行、引号需要保留
-            // 这里 js 是完整 IIFE，不要用 javascript: 前缀
             StringBuilder wrapped = new StringBuilder("(function(){try{\n");
             wrapped.append(js);
             wrapped.append("\n}catch(e){console.error('fmsdk inject failed',e);}})();");
             try {
-                v.evaluateJavascript(wrapped.toString(), value -> {
-                    sdkReady = true;
-                    // 再派发 fmsdk 事件（脚本顶部已经派发，这里仅兜底）
-                    v.evaluateJavascript("window.dispatchEvent && window.dispatchEvent(new CustomEvent('fmsdk'));", null);
-                });
+                v.evaluateJavascript(wrapped.toString(), value ->
+                        v.evaluateJavascript("window.dispatchEvent && window.dispatchEvent(new CustomEvent('fmsdk'));", null));
             } catch (Throwable t) {
                 Log.e(TAG, "injectSdk failed", t);
             }
