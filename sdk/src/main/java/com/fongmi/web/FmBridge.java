@@ -3,20 +3,17 @@ package com.fongmi.web;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * FongMi WebHome SDK 的 JS 桥 — 这是注入到 WebView 的 {@code fongmiBridge} 对象。
