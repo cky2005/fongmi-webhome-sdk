@@ -4,8 +4,6 @@ build/
 .gradle/
 */.gradle/
 sdk/build/
-sdk/libs/*.jar
-sdk/libs/*.aar
 *.iml
 .idea/
 local.properties
