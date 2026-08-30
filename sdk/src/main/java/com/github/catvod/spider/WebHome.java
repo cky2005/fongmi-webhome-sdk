@@ -1,7 +1,6 @@
 package com.github.catvod.spider;
 
 import android.content.Context;
-import android.text.TextUtils;
 
 import com.fongmi.web.FmActionHandler;
 import com.fongmi.web.FmController;
@@ -25,12 +24,12 @@ import java.util.List;
  * }
  * </pre>
  *
- * <p>壳启动该 Spider 后，{@link #homeContent(boolean)} / {@link #detailContent(List)}
- * 会打开全屏 WebView 加载 homePage，并通过注入的 fmsdk.js 让 HTML 能调用
- * window.fm / window.fongmi 的所有 SDK 能力。
- *
- * <p>壳可在自己的 init 之前调 {@link #setHandler(FmActionHandler)} 注入自定义业务实现，
- * 否则用默认实现（HTTP 走 HttpURLConnection，缓存走 SharedPreferences）。
+ * <p>实现策略：
+ * <ul>
+ *   <li>{@link #homeContent} 同步打开 WebView 弹窗，阻塞直到 WebView 关闭
+ *       （由 Activity 启动，所以不会卡 UI 线程）</li>
+ *   <li>弹窗关闭后返回一个 dummy 分类项给壳，壳才显示这个站的"分类列表"</li>
+ * </ul>
  */
 public class WebHome extends Spider {
 
@@ -49,8 +48,22 @@ public class WebHome extends Spider {
 
     @Override
     public String homeContent(boolean filter) {
-        show();
-        return "{\"class\":[],\"list\":[]}";
+        // 同步打开 WebView，fongmi 在主线程等返回值
+        showSync();
+        // 弹窗关闭后返回非空，让壳知道这个站有内容
+        try {
+            org.json.JSONObject r = new org.json.JSONObject();
+            org.json.JSONArray list = new org.json.JSONArray();
+            org.json.JSONObject item = new org.json.JSONObject();
+            item.put("type_id", "1");
+            item.put("type_name", "WebHome");
+            list.put(item);
+            r.put("class", list);
+            r.put("list", new org.json.JSONArray());
+            return r.toString();
+        } catch (Throwable e) {
+            return "{\"class\":[{\"type_id\":\"1\",\"type_name\":\"WebHome\"}],\"list\":[]}";
+        }
     }
 
     @Override
@@ -65,7 +78,6 @@ public class WebHome extends Spider {
 
     @Override
     public String detailContent(List<String> ids) {
-        show();
         return "{\"list\":[]}";
     }
 
@@ -76,6 +88,7 @@ public class WebHome extends Spider {
 
     @Override
     public String playerContent(String flag, String id, List<String> vipFlags) {
+        // fm.play 走这里
         try {
             String url = id == null ? "" : id;
             int at = url.indexOf("@@");
@@ -96,11 +109,16 @@ public class WebHome extends Spider {
         FmController.get().close();
     }
 
-    private void show() {
+    /**
+     * 同步打开 WebView。
+     * 在 UI 线程上调用，会阻塞当前线程直到 WebView 关闭。
+     * 由于 WebView 是一个 Dialog，它在自己的事件循环里运行，不会卡死 UI 线程。
+     */
+    private void showSync() {
         Context ctx = globalContext != null ? globalContext.get() : null;
         if (ctx == null) return;
         FmActionHandler h = globalHandler;
-        FmController.get().show(ctx, this.extend, "webhome", "WebHome", null, h);
+        FmController.get().showSync(ctx, this.extend, "webhome", "WebHome", null, h);
     }
 
     /** 壳在 init 自己 Spider 之前调用，注入业务实现。 */
