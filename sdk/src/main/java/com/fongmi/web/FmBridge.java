@@ -15,26 +15,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * FongMi WebHome SDK 的 JS 桥 — 这是注入到 WebView 的 {@code fongmiBridge} 对象。
- * <p>
- * 设计参考 webhtv 仓库的 HomeWebBridge.java，但是解耦了所有业务实现：
- * 业务通过 {@link FmActionHandler} 由壳注入。
- * <p>
- * 与 webhtv 兼容的接口:
- * <ul>
- *   <li>{@link #invoke} — 通用方法分发器</li>
- *   <li>{@link #console} — 调试 console</li>
- *   <li>{@link #network} — 调试 network</li>
- *   <li>{@link #resourceUrl} — 生成 webResource URL</li>
- *   <li>{@link #resultLength} / {@link #resultChunk} / {@link #clearResult} — 大结果分片</li>
- *   <li>{@link #inlineResult} — inline resolver 回调</li>
- * </ul>
- */
 public class FmBridge {
 
-    private static final int INLINE_LIMIT = 12_000;
-    private static final int CHUNK_SIZE = 60_000;
+    private static final int INLINE_LIMIT = 12000;
+    private static final int CHUNK_SIZE = 60000;
     private static final long INLINE_TIMEOUT_SECONDS = 20;
 
     private final WebView webView;
@@ -48,12 +32,6 @@ public class FmBridge {
         this.handler = handler;
     }
 
-    // ============== JS 接口 ==============
-
-    /**
-     * 通用方法分发器。JS SDK 通过这个入口调用所有 SDK 方法。
-     * payload 是 JSON 字符串，requestId 是 SDK 自动生成的去重 ID。
-     */
     @JavascriptInterface
     public void invoke(final String requestId, final String method, final String payload) {
         Thread t = new Thread(() -> {
@@ -72,17 +50,15 @@ public class FmBridge {
     @JavascriptInterface
     public void console(String level, String message) {
         if (handler == null) return;
-        try {
-            handler.extLog("[console." + level + "]", message == null ? "" : message);
-        } catch (Throwable ignored) {}
+        try { handler.extLog("[console." + level + "]", message == null ? "" : message); }
+        catch (Throwable ignored) {}
     }
 
     @JavascriptInterface
     public void network(String type, String method, String url, int status, long durationMs, String detail) {
         if (handler == null) return;
-        try {
-            handler.extLog("[net." + type + "]", method + " " + url + " " + status + " " + durationMs + "ms " + (detail == null ? "" : detail));
-        } catch (Throwable ignored) {}
+        try { handler.extLog("[net." + type + "]", method + " " + url + " " + status + " " + durationMs + "ms " + (detail == null ? "" : detail)); }
+        catch (Throwable ignored) {}
     }
 
     @JavascriptInterface
@@ -120,16 +96,12 @@ public class FmBridge {
         if (f != null) f.complete(payload);
     }
 
-    // ============== 内部 dispatch ==============
-
     private String handle(String method, JSONObject payload) {
         if (handler == null) return "{}";
         switch (method) {
-            // net
-            case "net.request":         return handleNetRequest(payload);
-            case "net.resourceUrl":     return quote(resourceUrl(payload.optString("url"), payload.toString()));
+            case "net.request":     return handleNetRequest(payload);
+            case "net.resourceUrl": return quote(resourceUrl(payload.optString("url"), payload.toString()));
 
-            // player
             case "player.playUrl":      handler.playUrl(payload.optString("url"), payload.optString("title"), payload); return "{}";
             case "player.playVod":      handler.playVod(payload.optString("siteKey"), payload.optString("vodId"),
                     payload.optString("title"), payload.optString("pic"), payload); return "{}";
@@ -138,7 +110,6 @@ public class FmBridge {
             case "player.control":      handler.controlPlayer(payload.optString("action")); return "{}";
             case "player.status":       return handler.playerStatus().toString();
 
-            // app
             case "app.search":          handler.search(payload.optString("keyword"), payload); return "{}";
             case "app.openVod":         handler.openVod(); return "{}";
             case "app.openLive":        handler.openLive(); return "{}";
@@ -146,32 +117,26 @@ public class FmBridge {
             case "app.openSetting":     handler.openSetting(); return "{}";
             case "app.history":         return handler.history().toString();
 
-            // cache
             case "cache.get":           return quote(handler.cacheGet(payload.optString("key"), payload.optString("rule")));
             case "cache.set":           handler.cacheSet(payload.optString("key"), payload.optString("value"), payload.optString("rule")); return "{}";
             case "cache.del":           handler.cacheDel(payload.optString("key"), payload.optString("rule")); return "{}";
 
-            // ui
             case "ui.setToolbar":       handler.setToolbar(!payload.has("visible") || payload.optBoolean("visible")); return "{}";
             case "ui.setChrome":        handler.setChrome(payload); return "{}";
             case "ui.restoreChrome":    handler.restoreChrome(); return "{}";
             case "ui.getViewport":      return handler.getViewport().toString();
 
-            // device/site/config
             case "device.info":         return handler.deviceInfo().toString();
             case "site.info":           return handler.siteInfo().toString();
             case "config.info":         return handler.configInfo().toString();
 
-            // ext
             case "ext.info":            return handler.extInfo().toString();
             case "ext.log":             handler.extLog(payload.optString("message"), payload.optString("data")); return "{}";
             case "ext.toast":           handler.extToast(payload.optString("message")); return "{}";
 
-            // pan
             case "pan.check":           return handler.panCheck(payload).toString();
             case "pan.play":            handler.panPlay(payload); return "{}";
 
-            // nav
             case "navigation.back":     handler.navigationBack(); return "{}";
             case "navigation.reload":   handler.navigationReload(); return "{}";
 
@@ -198,23 +163,18 @@ public class FmBridge {
             if ("base64".equalsIgnoreCase(responseType)) {
                 out.put("body", resp.base64);
             } else {
-                String text = resp.text == null ? "" : resp.text;
-                out.put("body", text);
+                out.put("body", resp.text == null ? "" : resp.text);
             }
             if (resp.error != null) out.put("error", resp.error);
         } catch (JSONException ignored) {}
         return out.toString();
     }
 
-    // ============== resolve / reject ==============
-
     private void resolve(String requestId, String value) {
         if (value == null) value = "{}";
-        // 大结果分片
         if (value.length() > INLINE_LIMIT) {
             String resultId = "r_" + UUID.randomUUID().toString().replace("-", "");
             results.put(resultId, value);
-            // 返回壳体: { __fmResultId: resultId } — JS SDK hydrate() 会自动拉分片
             value = "{\"__fmResultId\":\"" + resultId + "\"}";
         }
         final String inject = "window.fongmiNative && window.fongmiNative.resolve("
@@ -242,18 +202,11 @@ public class FmBridge {
         }
     }
 
-    // ============== inline resolver ==============
-
-    /**
-     * 触发 inline 集数解析。
-     * 由 {@link FmController#resolveInline(JSONObject)} 调用，结果通过 {@link #inlineResult} 回灌。
-     */
     public CompletableFuture<JSONObject> resolveInline(JSONObject episode) {
         CompletableFuture<JSONObject> future = new CompletableFuture<>();
         String id = "inline_" + UUID.randomUUID().toString().replace("-", "");
         inlineResults.put(id, future);
 
-        // 先问壳：壳可自己返回 null 走默认 JS resolver
         try {
             JSONObject fromHandler = handler.resolveInlineEpisode(episode);
             if (fromHandler != null) {
@@ -267,7 +220,6 @@ public class FmBridge {
             return future;
         }
 
-        // 默认: 在 WebView 内执行 window.__fmWebHomeInlineResolver(episode)
         String episodeJson = episode.toString().replace("\\", "\\\\").replace("'", "\\'");
         String script = "(function(){"
                 + "var ep=" + episodeJson + ";"
@@ -285,7 +237,6 @@ public class FmBridge {
 
         runOnUi(() -> evaluateJs(script));
 
-        // 超时
         main.postDelayed(() -> {
             CompletableFuture<JSONObject> f = inlineResults.remove(id);
             if (f != null && !f.isDone()) {
@@ -295,8 +246,6 @@ public class FmBridge {
 
         return future;
     }
-
-    // ============== util ==============
 
     private static String quote(String s) {
         if (s == null) return "\"\"";
