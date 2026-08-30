@@ -1,7 +1,5 @@
 package com.fongmi.web;
 
-import androidx.annotation.Nullable;
-
 public final class FmHttpResponse {
 
     public final int status;
@@ -32,7 +30,6 @@ public final class FmHttpResponse {
         return new FmHttpResponse(0, "", null, null, error);
     }
 
-    @Nullable
     public String body(String responseType) {
         if ("base64".equalsIgnoreCase(responseType)) return base64;
         return text;
