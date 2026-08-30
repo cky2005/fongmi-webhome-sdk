@@ -18,25 +18,13 @@ import java.util.Iterator;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.InflaterInputStream;
 
-/**
- * 默认的 FmActionHandler 实现。
- * <p>
- * 提供的功能:
- * <ul>
- *   <li>{@link #http} — 用 {@link HttpURLConnection} 同步发请求，自动处理 gzip/deflate、Cookie、UA</li>
- *   <li>{@link #playUrl} / {@link #playVod} / {@link #controlPlayer} / {@link #playerStatus} — 通过 {@link PlayerGateway} 转发</li>
- *   <li>{@link #cacheGet/Set/Del} — 简单用 SharedPreferences 持久化</li>
- *   <li>其他方法默认是 no-op 或返回合理占位</li>
- * </ul>
- * 壳可以继承本类覆盖关心的方法，忽略不关心的。
- */
 public class DefaultFmActionHandler implements FmActionHandler {
 
     private static final String DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 12; fongmi-webhome) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
 
-    private static final int READ_TIMEOUT_MS = 30_000;
-    private static final int CONNECT_TIMEOUT_MS = 15_000;
+    private static final int READ_TIMEOUT_MS = 30000;
+    private static final int CONNECT_TIMEOUT_MS = 15000;
 
     protected final Context appContext;
     protected final PlayerGateway player;
@@ -50,14 +38,11 @@ public class DefaultFmActionHandler implements FmActionHandler {
         this.player = player;
     }
 
-    // ============== HTTP ==============
-
     @Override
     public FmHttpResponse http(String url, String method, JSONObject headers, String body,
                                String responseType, int timeout, boolean includeCookie) {
         if (TextUtils.isEmpty(url)) return FmHttpResponse.failure("empty url");
         int to = timeout > 0 ? timeout * 1000 : READ_TIMEOUT_MS;
-
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(url).openConnection();
@@ -69,7 +54,6 @@ public class DefaultFmActionHandler implements FmActionHandler {
             conn.setRequestProperty("Accept-Encoding", "gzip, deflate");
             conn.setRequestProperty("Connection", "keep-alive");
 
-            // 合并 headers（业务优先，但 host/content-length/connection/accept-encoding 屏蔽）
             if (headers != null) {
                 Iterator<String> it = headers.keys();
                 while (it.hasNext()) {
@@ -81,7 +65,6 @@ public class DefaultFmActionHandler implements FmActionHandler {
                 }
             }
 
-            // Cookie
             if (includeCookie && appContext != null) {
                 String cookie = CookieManager.getInstance().getCookie(url);
                 if (!TextUtils.isEmpty(cookie)) conn.setRequestProperty("Cookie", cookie);
@@ -100,18 +83,13 @@ public class DefaultFmActionHandler implements FmActionHandler {
             int code = conn.getResponseCode();
             String finalUrl = conn.getURL().toString();
             String encoding = conn.getContentEncoding();
-            InputStream is = code >= 400
-                    ? conn.getErrorStream()
-                    : conn.getInputStream();
+            InputStream is = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
             byte[] raw = readAll(is, encoding);
 
             if ("base64".equalsIgnoreCase(responseType)) {
-                String b64 = Base64.encodeToString(raw, Base64.NO_WRAP);
-                return FmHttpResponse.successBytes(code, finalUrl, b64);
-            } else {
-                String text = new String(raw, "UTF-8");
-                return FmHttpResponse.success(code, finalUrl, text);
+                return FmHttpResponse.successBytes(code, finalUrl, Base64.encodeToString(raw, Base64.NO_WRAP));
             }
+            return FmHttpResponse.success(code, finalUrl, new String(raw, "UTF-8"));
         } catch (Throwable t) {
             return FmHttpResponse.failure(t.getClass().getSimpleName() + ": " + t.getMessage());
         } finally {
@@ -126,9 +104,7 @@ public class DefaultFmActionHandler implements FmActionHandler {
         try {
             if ("gzip".equalsIgnoreCase(encoding)) in = new GZIPInputStream(in);
             else if ("deflate".equalsIgnoreCase(encoding)) in = new InflaterInputStream(in);
-        } catch (IOException ignored) {
-            // fallback 原始流
-        }
+        } catch (IOException ignored) {}
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buf = new byte[8192];
         int n;
@@ -136,8 +112,6 @@ public class DefaultFmActionHandler implements FmActionHandler {
         in.close();
         return out.toByteArray();
     }
-
-    // ============== 播放 ==============
 
     @Override
     public void playUrl(String url, String title, JSONObject options) {
@@ -173,20 +147,16 @@ public class DefaultFmActionHandler implements FmActionHandler {
         return new JSONObject();
     }
 
-    // ============== App 入口 (默认 no-op) ==============
-
-    @Override public void search(String keyword, JSONObject options) { /* 壳覆盖 */ }
-    @Override public void openVod() { /* 壳覆盖 */ }
-    @Override public void openLive() { /* 壳覆盖 */ }
-    @Override public void openKeep() { /* 壳覆盖 */ }
-    @Override public void openSetting() { /* 壳覆盖 */ }
+    @Override public void search(String keyword, JSONObject options) { }
+    @Override public void openVod() { }
+    @Override public void openLive() { }
+    @Override public void openKeep() { }
+    @Override public void openSetting() { }
 
     @Override
     public JSONObject history() {
         return new JSONObject();
     }
-
-    // ============== 缓存 (默认用 SharedPreferences) ==============
 
     private android.content.SharedPreferences prefs() {
         return appContext.getSharedPreferences("fongmi_webhome_cache", Context.MODE_PRIVATE);
@@ -211,11 +181,9 @@ public class DefaultFmActionHandler implements FmActionHandler {
         prefs().edit().remove(cacheKey(rule, key)).apply();
     }
 
-    // ============== UI ==============
-
-    @Override public void setChrome(JSONObject options) { /* 壳覆盖 */ }
-    @Override public void restoreChrome() { /* 壳覆盖 */ }
-    @Override public void setToolbar(boolean visible) { /* 壳覆盖 */ }
+    @Override public void setChrome(JSONObject options) { }
+    @Override public void restoreChrome() { }
+    @Override public void setToolbar(boolean visible) { }
 
     @Override
     public JSONObject getViewport() {
@@ -239,8 +207,6 @@ public class DefaultFmActionHandler implements FmActionHandler {
         return v;
     }
 
-    // ============== Device / Site / Config ==============
-
     @Override
     public JSONObject deviceInfo() {
         JSONObject d = new JSONObject();
@@ -255,9 +221,7 @@ public class DefaultFmActionHandler implements FmActionHandler {
             d.put("serial", "");
             d.put("eth", "");
             d.put("wlan", "");
-        } catch (Throwable t) {
-            // ignore
-        }
+        } catch (Throwable t) {}
         return d;
     }
 
@@ -286,8 +250,6 @@ public class DefaultFmActionHandler implements FmActionHandler {
         return c;
     }
 
-    // ============== 扩展 ==============
-
     @Override
     public JSONObject extInfo() {
         JSONObject e = new JSONObject();
@@ -308,15 +270,10 @@ public class DefaultFmActionHandler implements FmActionHandler {
     }
 
     @Override
-    public void extToast(String message) {
-        // 默认 no-op，壳可覆盖
-    }
-
-    // ============== 网盘 ==============
+    public void extToast(String message) { }
 
     @Override
     public JSONObject panCheck(JSONObject payload) {
-        // 默认 no-op（需要壳实现 DriveCheckService）
         JSONObject r = new JSONObject();
         try { r.put("results", new org.json.JSONArray()); } catch (JSONException ignored) {}
         return r;
@@ -324,28 +281,19 @@ public class DefaultFmActionHandler implements FmActionHandler {
 
     @Override
     public void panPlay(JSONObject payload) {
-        // 默认走 playUrl
         if (payload == null) return;
         String url = payload.optString("url");
         String title = payload.optString("title", url);
         if (!TextUtils.isEmpty(url)) playUrl(url, title, null);
     }
 
-    // ============== 导航 ==============
-
-    @Override
-    public void navigationBack() { /* 壳覆盖 */ }
-    @Override
-    public void navigationReload() { /* 壳覆盖 */ }
-
-    // ============== Inline Resolver ==============
+    @Override public void navigationBack() { }
+    @Override public void navigationReload() { }
 
     @Override
     public JSONObject resolveInlineEpisode(JSONObject episode) {
-        return null; // 默认交给 WebView 里的 window.__fmWebHomeInlineResolver
+        return null;
     }
-
-    // ============== 工具 ==============
 
     private boolean isTv() {
         if (appContext == null) return false;
